@@ -8,5 +8,8 @@
 
         public decimal TotalAmount { get; set; }
         public List<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+        public int? UserId { get; set; }
+
+        public User? User { get; set; }
     }
 }
