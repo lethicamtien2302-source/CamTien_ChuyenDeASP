@@ -14,5 +14,6 @@
         public int? BrandId { get; set; }
 
         public Brand? Brand { get; set; }
+        public ProductDetail? ProductDetail { get; set; }
     }
 }
