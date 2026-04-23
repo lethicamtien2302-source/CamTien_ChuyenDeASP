@@ -1,6 +1,7 @@
 ﻿using ConnectDB.Data;
 using ConnectDB.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 namespace ConnectDB.Controllers
 {
     [Route("api/[controller]")]
@@ -8,61 +9,45 @@ namespace ConnectDB.Controllers
     public class PostsController : ControllerBase
     {
         private readonly AppDbContext _context;
-
-        public PostsController(AppDbContext context)
-        {
-            _context = context;
-        }
+        public PostsController(AppDbContext context) => _context = context;
 
         [HttpGet]
-        public IActionResult GetAll()
-        {
-            return Ok(_context.Posts.ToList());
-        }
+        public async Task<ActionResult<IEnumerable<Post>>> GetPosts() =>
+            await _context.Posts.OrderByDescending(p => p.CreatedAt).ToListAsync();
 
         [HttpGet("{id}")]
-        public IActionResult GetById(int id)
+        public async Task<ActionResult<Post>> GetPost(int id)
         {
-            var post = _context.Posts.Find(id);
-            if (post == null) return NotFound();
-
-            return Ok(post);
+            var post = await _context.Posts.FindAsync(id);
+            return post == null ? NotFound() : post;
         }
 
         [HttpPost]
-        public IActionResult Create(Post post)
+        public async Task<ActionResult<Post>> PostPost(Post post)
         {
+            post.CreatedAt = DateTime.Now;
             _context.Posts.Add(post);
-            _context.SaveChanges();
-
-            return Ok(post);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetPost), new { id = post.Id }, post);
         }
 
         [HttpPut("{id}")]
-        public IActionResult Update(int id, Post post)
+        public async Task<IActionResult> PutPost(int id, Post post)
         {
-            var existing = _context.Posts.Find(id);
-            if (existing == null) return NotFound();
-
-            existing.Title = post.Title;
-            existing.Content = post.Content;
-            existing.Image = post.Image;
-
-            _context.SaveChanges();
-
-            return Ok(existing);
+            if (id != post.Id) return BadRequest();
+            _context.Entry(post).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> DeletePost(int id)
         {
-            var post = _context.Posts.Find(id);
+            var post = await _context.Posts.FindAsync(id);
             if (post == null) return NotFound();
-
             _context.Posts.Remove(post);
-            _context.SaveChanges();
-
-            return Ok();
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }

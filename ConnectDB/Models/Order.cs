@@ -7,9 +7,12 @@
         public DateTime OrderDate { get; set; } = DateTime.Now;
 
         public decimal TotalAmount { get; set; }
-        public List<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
-        public int? UserId { get; set; }
 
+        public string Status { get; set; } = "Pending";
+
+        public int? UserId { get; set; }
         public User? User { get; set; }
+
+        public List<OrderDetail> OrderDetails { get; set; } = new();
     }
 }

@@ -10,78 +10,72 @@ namespace ConnectDB.Controllers
     public class CartsController : ControllerBase
     {
         private readonly AppDbContext _context;
+        public CartsController(AppDbContext context) => _context = context;
 
-        public CartsController(AppDbContext context)
+        // 1. Lấy giỏ hàng theo UserId
+        [HttpGet("{userId}")]
+        public async Task<ActionResult<Cart>> GetCart(int userId)
         {
-            _context = context;
+            var cart = await _context.Carts
+                .Include(c => c.CartItems).ThenInclude(ci => ci.Product)
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+            return cart == null ? NotFound() : cart;
         }
-
-        // ✅ GET ALL (có include)
+        // Thêm hàm này vào CartsController.cs
         [HttpGet]
-        public IActionResult GetAll()
+        public async Task<ActionResult<IEnumerable<Cart>>> GetCarts()
         {
-            var carts = _context.Carts
+            return await _context.Carts
+                .Include(c => c.User)
                 .Include(c => c.CartItems)
-                .ThenInclude(ci => ci.Product)
-                .ToList();
-
-            return Ok(carts);
+                    .ThenInclude(ci => ci.Product) // Thêm dòng này để lấy thông tin sản phẩm
+                .ToListAsync();
         }
 
-        // ✅ GET BY ID
-        [HttpGet("{id}")]
-        public IActionResult GetById(int id)
-        {
-            var cart = _context.Carts
-                .Include(c => c.CartItems)
-                .ThenInclude(ci => ci.Product)
-                .FirstOrDefault(c => c.Id == id);
-
-            if (cart == null)
-                return NotFound();
-
-            return Ok(cart);
-        }
-
-        // ✅ CREATE
+        // 2. TẠO GIỎ HÀNG MỚI (Dùng hàm này để sửa lỗi 404/500 của bạn)
         [HttpPost]
-        public IActionResult Create(Cart cart)
+        public async Task<ActionResult<Cart>> PostCart(Cart cart)
         {
-            _context.Carts.Add(cart);
-            _context.SaveChanges();
+            // Kiểm tra xem User này đã có giỏ hàng chưa để tránh trùng lặp
+            var existingCart = await _context.Carts.FirstOrDefaultAsync(c => c.UserId == cart.UserId);
+            if (existingCart != null) return BadRequest("User này đã có giỏ hàng rồi!");
 
+            _context.Carts.Add(cart);
+            await _context.SaveChangesAsync();
             return Ok(cart);
         }
 
-        // ✅ UPDATE (ít dùng nhưng vẫn có)
-        [HttpPut("{id}")]
-        public IActionResult Update(int id, Cart cart)
+        // 3. Thêm món hàng vào giỏ
+        [HttpPost("items")]
+        public async Task<IActionResult> AddItemToCart(CartItem item)
         {
-            var existing = _context.Carts.Find(id);
+            // Kiểm tra xem CartId có tồn tại thật không
+            var cartExists = await _context.Carts.AnyAsync(c => c.Id == item.CartId);
+            if (!cartExists) return BadRequest("CartId không tồn tại!");
 
-            if (existing == null)
-                return NotFound();
-
-            existing.UserId = cart.UserId;
-
-            _context.SaveChanges();
-
-            return Ok(existing);
+            _context.CartItems.Add(item);
+            await _context.SaveChangesAsync();
+            return Ok("Đã thêm vào giỏ hàng");
         }
 
-        // ✅ DELETE
-        [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        [HttpPut("items/{itemId}")]
+        public async Task<IActionResult> UpdateCartItem(int itemId, int quantity)
         {
-            var cart = _context.Carts.Find(id);
+            var item = await _context.CartItems.FindAsync(itemId);
+            if (item == null) return NotFound();
+            item.Quantity = quantity;
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
 
-            if (cart == null)
-                return NotFound();
-
-            _context.Carts.Remove(cart);
-            _context.SaveChanges();
-
-            return Ok();
+        [HttpDelete("items/{itemId}")]
+        public async Task<IActionResult> RemoveCartItem(int itemId)
+        {
+            var item = await _context.CartItems.FindAsync(itemId);
+            if (item == null) return NotFound();
+            _context.CartItems.Remove(item);
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }

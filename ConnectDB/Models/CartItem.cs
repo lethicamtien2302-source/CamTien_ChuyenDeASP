@@ -1,10 +1,12 @@
-﻿namespace ConnectDB.Models
+﻿using System.Text.Json.Serialization;
+namespace ConnectDB.Models
 {
     public class CartItem
     {
         public int Id { get; set; }
 
         public int CartId { get; set; }
+        [JsonIgnore]
         public Cart? Cart { get; set; }
 
         public int ProductId { get; set; }

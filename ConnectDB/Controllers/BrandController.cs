@@ -1,6 +1,7 @@
-﻿using ConnectDB.Data;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using ConnectDB.Data;
 using ConnectDB.Models;
-using Microsoft.AspNetCore.Mvc;
 
 namespace ConnectDB.Controllers
 {
@@ -9,62 +10,43 @@ namespace ConnectDB.Controllers
     public class BrandsController : ControllerBase
     {
         private readonly AppDbContext _context;
+        public BrandsController(AppDbContext context) => _context = context;
 
-        public BrandsController(AppDbContext context)
-        {
-            _context = context;
-        }
-
-        // GET ALL
         [HttpGet]
-        public IActionResult GetAll()
-        {
-            return Ok(_context.Brands.ToList());
-        }
+        public async Task<ActionResult<IEnumerable<Brand>>> GetBrands() => await _context.Brands.ToListAsync();
 
-        // GET BY ID
         [HttpGet("{id}")]
-        public IActionResult GetById(int id)
+        public async Task<ActionResult<Brand>> GetBrand(int id)
         {
-            var brand = _context.Brands.Find(id);
-            if (brand == null) return NotFound();
-
-            return Ok(brand);
+            var brand = await _context.Brands.Include(b => b.Products).FirstOrDefaultAsync(b => b.Id == id);
+            return brand == null ? NotFound() : brand;
         }
 
-        // CREATE
         [HttpPost]
-        public IActionResult Create(Brand brand)
+        public async Task<ActionResult<Brand>> PostBrand(Brand brand)
         {
             _context.Brands.Add(brand);
-            _context.SaveChanges();
-            return Ok(brand);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetBrand), new { id = brand.Id }, brand);
         }
 
-        // UPDATE
         [HttpPut("{id}")]
-        public IActionResult Update(int id, Brand brand)
+        public async Task<IActionResult> PutBrand(int id, Brand brand)
         {
-            var existing = _context.Brands.Find(id);
-            if (existing == null) return NotFound();
-
-            existing.Name = brand.Name;
-
-            _context.SaveChanges();
-            return Ok(existing);
+            if (id != brand.Id) return BadRequest();
+            _context.Entry(brand).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
 
-        // DELETE
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> DeleteBrand(int id)
         {
-            var brand = _context.Brands.Find(id);
+            var brand = await _context.Brands.FindAsync(id);
             if (brand == null) return NotFound();
-
             _context.Brands.Remove(brand);
-            _context.SaveChanges();
-
-            return Ok();
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }

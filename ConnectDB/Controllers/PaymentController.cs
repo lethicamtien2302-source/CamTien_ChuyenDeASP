@@ -1,6 +1,7 @@
 ﻿using ConnectDB.Data;
 using ConnectDB.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ConnectDB.Controllers
 {
@@ -9,60 +10,44 @@ namespace ConnectDB.Controllers
     public class PaymentsController : ControllerBase
     {
         private readonly AppDbContext _context;
-
-        public PaymentsController(AppDbContext context)
-        {
-            _context = context;
-        }
+        public PaymentsController(AppDbContext context) => _context = context;
 
         [HttpGet]
-        public IActionResult GetAll()
-        {
-            return Ok(_context.Payments.ToList());
-        }
+        public async Task<ActionResult<IEnumerable<Payment>>> GetPayments() =>
+            await _context.Payments.Include(p => p.Order).ToListAsync();
 
         [HttpGet("{id}")]
-        public IActionResult GetById(int id)
+        public async Task<ActionResult<Payment>> GetPayment(int id)
         {
-            var item = _context.Payments.Find(id);
-            if (item == null) return NotFound();
-
-            return Ok(item);
+            var payment = await _context.Payments.Include(p => p.Order).FirstOrDefaultAsync(p => p.Id == id);
+            return payment == null ? NotFound() : payment;
         }
 
         [HttpPost]
-        public IActionResult Create(Payment item)
+        public async Task<ActionResult<Payment>> PostPayment(Payment payment)
         {
-            _context.Payments.Add(item);
-            _context.SaveChanges();
-
-            return Ok(item);
+            _context.Payments.Add(payment);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetPayment), new { id = payment.Id }, payment);
         }
 
         [HttpPut("{id}")]
-        public IActionResult Update(int id, Payment item)
+        public async Task<IActionResult> PutPayment(int id, Payment payment)
         {
-            var existing = _context.Payments.Find(id);
-            if (existing == null) return NotFound();
-
-            existing.Method = item.Method;
-            existing.Status = item.Status;
-
-            _context.SaveChanges();
-
-            return Ok(existing);
+            if (id != payment.Id) return BadRequest();
+            _context.Entry(payment).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> DeletePayment(int id)
         {
-            var item = _context.Payments.Find(id);
-            if (item == null) return NotFound();
-
-            _context.Payments.Remove(item);
-            _context.SaveChanges();
-
-            return Ok();
+            var payment = await _context.Payments.FindAsync(id);
+            if (payment == null) return NotFound();
+            _context.Payments.Remove(payment);
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }

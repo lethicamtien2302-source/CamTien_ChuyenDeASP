@@ -1,6 +1,7 @@
 ﻿using ConnectDB.Data;
 using ConnectDB.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ConnectDB.Controllers
 {
@@ -9,65 +10,42 @@ namespace ConnectDB.Controllers
     public class AddressesController : ControllerBase
     {
         private readonly AppDbContext _context;
+        public AddressesController(AppDbContext context) => _context = context;
 
-        public AddressesController(AppDbContext context)
-        {
-            _context = context;
-        }
-
-        // GET ALL
         [HttpGet]
-        public IActionResult GetAll()
+        public async Task<ActionResult<IEnumerable<Address>>> GetAddresses() => await _context.Addresses.ToListAsync();
+
+        [HttpGet("user/{userId}")]
+        public async Task<ActionResult<IEnumerable<Address>>> GetAddressesByUser(int userId)
         {
-            return Ok(_context.Addresses.ToList());
+            return await _context.Addresses.Where(a => a.UserId == userId).ToListAsync();
         }
 
-        // GET BY ID
-        [HttpGet("{id}")]
-        public IActionResult GetById(int id)
-        {
-            var address = _context.Addresses.Find(id);
-            if (address == null) return NotFound();
-
-            return Ok(address);
-        }
-
-        // CREATE
         [HttpPost]
-        public IActionResult Create(Address address)
+        public async Task<ActionResult<Address>> PostAddress(Address address)
         {
             _context.Addresses.Add(address);
-            _context.SaveChanges();
-
+            await _context.SaveChangesAsync();
             return Ok(address);
         }
 
-        // UPDATE
         [HttpPut("{id}")]
-        public IActionResult Update(int id, Address address)
+        public async Task<IActionResult> PutAddress(int id, Address address)
         {
-            var existing = _context.Addresses.Find(id);
-            if (existing == null) return NotFound();
-
-            existing.AddressLine = address.AddressLine;
-            existing.Phone = address.Phone;
-
-            _context.SaveChanges();
-
-            return Ok(existing);
+            if (id != address.Id) return BadRequest();
+            _context.Entry(address).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
 
-        // DELETE
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> DeleteAddress(int id)
         {
-            var address = _context.Addresses.Find(id);
+            var address = await _context.Addresses.FindAsync(id);
             if (address == null) return NotFound();
-
             _context.Addresses.Remove(address);
-            _context.SaveChanges();
-
-            return Ok();
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }

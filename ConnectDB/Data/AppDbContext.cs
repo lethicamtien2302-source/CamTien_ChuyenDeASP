@@ -24,18 +24,14 @@ namespace ConnectDB.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<Product>().Property(p => p.Price).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<OrderDetail>().Property(od => od.Price).HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<Order>().Property(o => o.TotalAmount).HasColumnType("decimal(18,2)");
 
             modelBuilder.Entity<Product>()
-                .Property(p => p.Price)
-                .HasPrecision(18, 2);
-
-            modelBuilder.Entity<Order>()
-                .Property(o => o.TotalAmount)
-                .HasPrecision(18, 2);
-
-            modelBuilder.Entity<OrderDetail>()
-                .Property(od => od.Price)
-                .HasPrecision(18, 2);
+            .HasOne(p => p.ProductDetail)
+            .WithOne(pd => pd.Product)
+            .HasForeignKey<ProductDetail>(pd => pd.ProductId);
         }
     }
 }

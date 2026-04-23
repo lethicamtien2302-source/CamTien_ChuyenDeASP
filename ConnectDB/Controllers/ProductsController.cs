@@ -5,82 +5,130 @@ using ConnectDB.Models;
 
 namespace ConnectDB.Controllers
 {
-    [ApiController]
     [Route("api/[controller]")]
+    [ApiController]
     public class ProductsController : ControllerBase
     {
         private readonly AppDbContext _context;
+        public ProductsController(AppDbContext context) => _context = context;
 
-        public ProductsController(AppDbContext context)
+        // 1. Cập nhật hàm GetProducts để trả về thêm CategoryName và BrandName
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<object>>> GetProducts()
         {
-            _context = context;
+            var products = await _context.Products
+                .Include(p => p.Brand)
+                .Include(p => p.Category)
+                .Select(p => new {
+                    p.Id,
+                    p.Name,
+                    p.Price,
+                    p.Stock,
+                    p.Image,
+                    p.CategoryId,
+                    CategoryName = p.Category != null ? p.Category.Name : "N/A", // Lấy tên Cate
+                    p.BrandId,
+                    BrandName = p.Brand != null ? p.Brand.Name : "N/A"
+                })
+                .ToListAsync();
+            return products;
         }
 
-        [HttpGet]
-        public IActionResult GetAll()
+        // 2. Cập nhật hàm PutProduct để xử lý Up ảnh khi Sửa
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutProduct(int id, [FromForm] Product product, IFormFile? imageFile)
         {
-            var data = _context.Products
-                .Include(x => x.Category)
-                .ToList();
+            if (id != product.Id) return BadRequest();
 
-            return Ok(data);
+            try
+            {
+                // Lấy thông tin sản phẩm cũ trong DB để giữ lại ảnh nếu không update ảnh mới
+                var existingProduct = await _context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+                if (existingProduct == null) return NotFound();
+
+                if (imageFile != null && imageFile.Length > 0)
+                {
+                    // Xử lý lưu file mới (giống hàm Post)
+                    var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images");
+                    if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(imageFile.FileName);
+                    var filePath = Path.Combine(path, fileName);
+
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await imageFile.CopyToAsync(stream);
+                    }
+                    product.Image = fileName; // Lưu tên file mới
+                }
+                else
+                {
+                    // Nếu không chọn file mới, giữ nguyên tên file cũ
+                    product.Image = existingProduct.Image;
+                }
+
+                _context.Entry(product).State = EntityState.Modified;
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Products.Any(e => e.Id == id)) return NotFound();
+                throw;
+            }
+
+            return NoContent();
         }
 
         [HttpGet("{id}")]
-        public IActionResult GetById(int id)
+        public async Task<ActionResult<Product>> GetProduct(int id)
         {
-            var item = _context.Products
-                .Include(x => x.Category)
-                .FirstOrDefault(x => x.Id == id);
-
-            if (item == null)
-                return NotFound();
-
-            return Ok(item);
+            var product = await _context.Products.Include(p => p.Brand).Include(p => p.Category).Include(p => p.ProductDetail).FirstOrDefaultAsync(p => p.Id == id);
+            if (product == null) return NotFound();
+            return product;
         }
 
         [HttpPost]
-        public IActionResult Create(Product model)
+        public async Task<ActionResult<Product>> PostProduct([FromForm] Product product, IFormFile? imageFile)
         {
-            _context.Products.Add(model);
-            _context.SaveChanges();
+            try
+            {
+                if (imageFile != null && imageFile.Length > 0)
+                {
+                    // Xác định đường dẫn lưu file vào thư mục wwwroot/images
+                    var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images");
+                    if (!Directory.Exists(path)) Directory.CreateDirectory(path);
 
-            var result = _context.Products
-                .Include(x => x.Category)
-                .FirstOrDefault(x => x.Id == model.Id);
+                    // Tạo tên file duy nhất bằng GUID để không bị trùng
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(imageFile.FileName);
+                    var filePath = Path.Combine(path, fileName);
 
-            return Ok(result);
-        }
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await imageFile.CopyToAsync(stream);
+                    }
 
-        [HttpPut("{id}")]
-        public IActionResult Update(int id, Product model)
-        {
-            var item = _context.Products.Find(id);
+                    // Gán tên file vào thuộc tính Image của model Product để lưu vào DB
+                    product.Image = fileName;
+                }
 
-            if (item == null)
-                return NotFound();
-
-            item.Name = model.Name;
-            item.Price = model.Price;
-            item.CategoryId = model.CategoryId;
-
-            _context.SaveChanges();
-
-            return Ok(item);
+                _context.Products.Add(product);
+                await _context.SaveChangesAsync();
+                return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Lỗi hệ thống: {ex.Message}");
+            }
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> DeleteProduct(int id)
         {
-            var item = _context.Products.Find(id);
-
-            if (item == null)
-                return NotFound();
-
-            _context.Products.Remove(item);
-            _context.SaveChanges();
-
-            return Ok();
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return NotFound();
+            _context.Products.Remove(product);
+            await _context.SaveChangesAsync();
+            return NoContent();
         }
     }
 }
